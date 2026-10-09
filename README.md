@@ -2,6 +2,10 @@
 
 Mobile-first, on-device multi-barcode scanner. Camera frames are decoded in a Web Worker using ZXing-C++ WebAssembly plus supplemental linear readers. Detected codes receive live outlines and labels, with a deduplicated in-memory session list.
 
+## Image scanning
+
+Upload image accepts browser-readable image files up to 20 MB and 40 megapixels. Images are decoded locally, scaled to a maximum dimension of 2400 pixels, and scanned by the same worker as the camera. The preview receives outlines and the session list receives deduplicated values and crops. Selecting an image stops the active camera and flash; Use camera returns to live capture. No image is sent to a server. HEIC and other codecs depend on browser support; unsupported or damaged images show a retry message.
+
 ## Supported formats
 
 All 17 requested labels are enabled: Codabar, Code 11, Code 25, Code 32, Code 39, Code 93, Code 128, GS1 DataBar, GS1 DataBar Expanded, EAN-13, EAN-8, IATA 2 of 5, Industrial 2 of 5, ITF, MSI Plessey, UPC-A and UPC-E. QR, Data Matrix, PDF417 and Aztec remain supported by ZXing.

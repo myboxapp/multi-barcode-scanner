@@ -2,6 +2,7 @@ const $=id=>document.getElementById(id);
 const video=$('video'), overlay=$('overlay'),ctx=overlay.getContext('2d');
 const capture=document.createElement('canvas'),captureCtx=capture.getContext('2d',{willReadFrequently:true});
 const records=new Map();let stream=null,worker=null,paused=false,busy=false,starting=false,facing='environment',torch=false,torchBusy=false,epoch=0,timer=null,timeout=null,last=[];
+let imageMode=false,imageUrl=null;
 const emptyResults=$('resultList').innerHTML;
 const formatNames={code_11:'Code 11',code_32:'Code 32',industrial_2_of_5:'Industrial 2 of 5 / Code 25',iata_2_of_5:'IATA 2 of 5',matrix_2_of_5:'Code 25 (Matrix)',msi_plessey:'MSI Plessey',databar_omni:'GS1 DataBar',databar_stacked:'GS1 DataBar Stacked',databar_stacked_omni:'GS1 DataBar Stacked',databar_limited:'GS1 DataBar Limited',databar_expanded:'GS1 DataBar Expanded',databar_expanded_stacked:'GS1 DataBar Expanded Stacked',upc_a:'UPC-A',upc_e:'UPC-E',ean_13:'EAN-13',ean_8:'EAN-8'};
 function message(text,error=false){$('message').textContent=text;$('message').classList.toggle('error',error);}
@@ -69,17 +70,19 @@ function scan(){
 function setupWorker(){
   worker=new Worker(new URL('decoder.js',import.meta.url),{type:'module'});
   worker.onmessage=({data})=>{
-    clearTimeout(timeout);busy=false;if(data.id!==epoch||!stream)return;
+    clearTimeout(timeout);busy=false;if(data.id!==epoch||(!stream&&!imageMode))return;
     if(data.error){stopCamera();message('The barcode engine could not start. Reload the page and try again.',true);return;}
     if(paused)return;
-    last=data.codes;draw(last,data.width,data.height);$('visibleCount').textContent=`${last.length} in frame`;
+    last=data.codes;draw(last,data.width,data.height);$('visibleCount').textContent=`${last.length} in ${imageMode?'image':'frame'}`;
     let changed=false;for(const code of last){if(!code.rawValue)continue;const key=JSON.stringify([code.format,code.rawValue]);if(!records.has(key)){records.set(key,{value:code.rawValue,format:code.format,timestamp:new Date().toISOString(),clip:barcodeClip(code)});changed=true;}}
-    if(changed)render();schedule();
+    if(changed)render();
+    if(imageMode){$('upload').disabled=false;$('upload').textContent='Upload image';status('Image scanned');message(last.length?`Found ${last.length} barcode${last.length===1?'':'s'} in the image. Unique codes and clips are in the list.`:'No barcodes found. Try a clearer image with the full barcode visible.');}
+    else schedule();
   };
   worker.onerror=()=>{stopCamera();message('The scanner could not load. Reload the page to retry.',true);};
 }
 async function startCamera(){
-  if(starting||stream)return;starting=true;const request=++epoch;$('start').disabled=true;$('start').textContent='Starting camera…';status('Connecting');
+  if(starting||stream)return;if(imageMode)stopCamera();starting=true;const request=++epoch;$('start').disabled=true;$('start').textContent='Starting camera…';status('Connecting');
   try{
     if(!window.isSecureContext)throw Object.assign(new Error(),{name:'InsecureContext'});
     if(!navigator.mediaDevices?.getUserMedia)throw Object.assign(new Error(),{name:'Unsupported'});
@@ -97,14 +100,41 @@ async function startCamera(){
     if(request!==epoch)return;stopCamera();
     const errors={NotAllowedError:'Camera access was denied. Allow camera access in your browser settings, then try again.',NotFoundError:'No camera found. Open this page on a device with a camera.',NotReadableError:'Your camera is in use. Close other camera apps and try again.',InsecureContext:'Camera access requires HTTPS. Open the secure version of this page.',Unsupported:'This browser cannot access a camera. Try Safari or Chrome on your phone.'};
     message(errors[error.name]||'Could not start the camera. Check your camera permissions and try again.',true);
-  }finally{starting=false;$('start').disabled=false;$('start').textContent='Start camera';}
+  }finally{if(request===epoch){starting=false;$('start').disabled=false;$('start').textContent='Start camera';}}
 }
 function stopCamera(){
+  starting=false;$('start').disabled=false;$('start').textContent='Start camera';
+  imageMode=false;if(imageUrl){URL.revokeObjectURL(imageUrl);imageUrl=null;}
+  $('uploadedImage').hidden=true;$('uploadedImage').removeAttribute('src');$('cameraMode').hidden=true;
+  $('upload').disabled=false;$('upload').textContent='Upload image';
   ++epoch;clearTimeout(timer);clearTimeout(timeout);worker?.terminate();worker=null;busy=false;
   stream?.getTracks().forEach(t=>{t.onended=null;t.stop();});stream=null;video.srcObject=null;paused=false;torch=false;last=[];draw();
   $('cameraEmpty').hidden=false;$('liveHint').hidden=true;for(const id of ['toggle','flip','torch','stop'])$(id).disabled=true;
   torchBusy=false;updateTorch();$('visibleCount').textContent='0 in frame';status('Camera off');
 }
+$('upload').onclick=()=>$('imageFile').click();
+$('cameraMode').onclick=startCamera;
+$('imageFile').onchange=async()=>{
+  const file=$('imageFile').files?.[0];$('imageFile').value='';if(!file)return;
+  if(file.size>20*1024*1024){message('Choose an image smaller than 20 MB.',true);return;}
+  if(file.type&&!file.type.startsWith('image/')){message('Choose an image file, such as JPG, PNG or WebP.',true);return;}
+  stopCamera();const request=epoch;imageMode=true;$('cameraMode').hidden=false;
+  $('upload').disabled=true;$('upload').textContent='Scanning image…';status('Reading image');message('Reading your image on this device…');
+  try{
+    imageUrl=URL.createObjectURL(file);const img=new Image();img.src=imageUrl;await img.decode();
+    if(request!==epoch)return;
+    if(!img.naturalWidth||img.naturalWidth*img.naturalHeight>40000000)throw new Error('Image is too large. Choose an image under 40 megapixels.');
+    const scale=Math.min(1,2400/Math.max(img.naturalWidth,img.naturalHeight));
+    capture.width=Math.max(1,Math.round(img.naturalWidth*scale));capture.height=Math.max(1,Math.round(img.naturalHeight*scale));
+    captureCtx.fillStyle='white';captureCtx.fillRect(0,0,capture.width,capture.height);captureCtx.drawImage(img,0,0,capture.width,capture.height);
+    $('uploadedImage').src=imageUrl;$('uploadedImage').hidden=false;$('cameraEmpty').hidden=true;status('Scanning image');
+    setupWorker();const frame=captureCtx.getImageData(0,0,capture.width,capture.height);busy=true;
+    worker.postMessage({id:request,frame},[frame.data.buffer]);
+    timeout=setTimeout(()=>{if(request!==epoch)return;stopCamera();message('This image took too long to scan. Try a smaller image.',true);},30000);
+  }catch(error){
+    if(request!==epoch)return;stopCamera();message(error.message.startsWith('Image is too large')?error.message:'Could not read this image. Try a JPG, PNG or WebP file.',true);
+  }
+};
 $('start').onclick=startCamera;
 $('stop').onclick=()=>{stopCamera();message('Camera stopped. Your scanned codes are still here.');};
 $('toggle').onclick=()=>{

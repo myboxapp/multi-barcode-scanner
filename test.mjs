@@ -56,6 +56,21 @@ try{
  assert.equal(await page.locator('.barcode-clip').count(),2);assert.equal(await page.locator('#torch').isDisabled(),true);
  await page.click('#clear');assert.equal(await page.locator('.barcode-clip').count(),0);assert.equal(await page.locator('#count').textContent(),'0');
  await page.setViewportSize({width:1440,height:1000});await page.screenshot({path:'/tmp/multiscan-desktop.png',fullPage:true});
+ const imageData=await page.evaluate(async({qr,bar})=>{
+  const canvas=document.createElement('canvas');canvas.width=1200;canvas.height=800;const ctx=canvas.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,1200,800);
+  const imgs=await Promise.all([qr,bar].map(async src=>{const img=new Image();img.src=src;await img.decode();return img;}));ctx.drawImage(imgs[0],100,100);ctx.drawImage(imgs[1],520,300);return canvas.toDataURL('image/png').split(',')[1];
+ },{qr:`data:image/png;base64,${qr.toString('base64')}`,bar:`data:image/png;base64,${bar.toString('base64')}`});
+ const file={name:'multiple-barcodes.png',mimeType:'image/png',buffer:Buffer.from(imageData,'base64')};
+ await page.locator('#imageFile').setInputFiles(file);await page.waitForFunction(()=>document.querySelector('#status').textContent==='Image scanned');
+ assert.equal(await page.locator('#count').textContent(),'2');assert.equal(await page.locator('.barcode-clip').count(),2);assert.equal(await page.locator('#visibleCount').textContent(),'2 in image');assert.equal(await page.locator('#uploadedImage').isVisible(),true);
+ await page.locator('#imageFile').setInputFiles(file);await page.waitForFunction(()=>document.querySelector('#status').textContent==='Image scanned');assert.equal(await page.locator('#count').textContent(),'2');
+ await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:'/tmp/multiscan-upload.png',fullPage:true});
+ await page.click('#cameraMode');await page.waitForFunction(()=>document.querySelector('#status').textContent==='Live');assert.equal(await page.locator('#uploadedImage').isVisible(),false);
+ await page.locator('#imageFile').setInputFiles(file);await page.waitForFunction(()=>document.querySelector('#status').textContent==='Image scanned');assert.equal(await page.evaluate(()=>document.querySelector('#video').srcObject),null);
+ const blank=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=300;c.height=300;const x=c.getContext('2d');x.fillStyle='white';x.fillRect(0,0,300,300);return c.toDataURL('image/png').split(',')[1];});
+ await page.locator('#imageFile').setInputFiles({name:'blank.png',mimeType:'image/png',buffer:Buffer.from(blank,'base64')});await page.waitForFunction(()=>document.querySelector('#message').textContent.startsWith('No barcodes found'));assert.equal(await page.locator('#count').textContent(),'2');
+ await page.locator('#imageFile').setInputFiles({name:'broken.png',mimeType:'image/png',buffer:Buffer.from('not a real image')});await page.waitForFunction(()=>document.querySelector('#message').textContent.startsWith('Could not read'));assert.equal(await page.locator('#upload').isEnabled(),true);assert.equal(await page.locator('#count').textContent(),'2');
+ console.log('PASS: multi-barcode image upload, preview, clips, deduplication, reselecting same file, mobile layout, camera/image switching, blank image and corrupt file handling.');
  const denied=await browser.newPage();await denied.addInitScript(()=>Object.defineProperty(navigator.mediaDevices,'getUserMedia',{value:async()=>{throw new DOMException('Denied','NotAllowedError');}}));
  await denied.goto('http://127.0.0.1:8091');await denied.click('#start');await denied.waitForFunction(()=>document.querySelector('#message').textContent.includes('denied'));
  assert.equal(errors.length,0,errors.join('\n'));
