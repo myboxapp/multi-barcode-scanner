@@ -25,6 +25,8 @@ python3 -m http.server 8080 --directory dist
 
 Open localhost for desktop development. Mobile cameras require an HTTPS host. No backend, camera uploads, or persistent result storage. Each unique detection keeps a PNG crop from the exact decoded frame (up to 640 pixels on its longest side). Clips appear beside the values, survive stopping the camera, and are removed by Clear or a page reload. Flash controls are enabled only when the active camera advertises torch support; the UI reports constraint failures and resets on camera stop or switch. Flashlight and camera switching depend on device support. Start camera explicitly to grant permission; backgrounding the page stops capture.
 
+Live capture scans the full frame at up to 1920 pixels and alternates through three overlapping, contrast-enhanced horizontal bands. This preserves normal multi-format scanning while giving short, dense labels additional pixels. The next frame is scheduled according to the preceding decode time to avoid overwhelming mobile devices. Continuous autofocus is requested when the camera advertises it. Camera enumeration is optional, so a browser that blocks device listing can still scan with its default camera.
+
 ## Verify
 
 `npm test` uses Chromium (at `/usr/bin/chromium`) with a simulated camera frame containing multiple generated barcodes. It checks actual decoding, deduplication, pause/resume, stop, permission-denied feedback, mobile layout, and the optional browser agent tool.

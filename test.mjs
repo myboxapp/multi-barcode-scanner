@@ -78,12 +78,31 @@ try{
   ctx.save();ctx.translate(300,750);ctx.rotate(-Math.PI/180);ctx.globalAlpha=.7;ctx.filter='blur(0.6px)';ctx.drawImage(images[0],0,0);ctx.drawImage(images[1],0,400);ctx.restore();
   ctx.fillStyle='#303030';ctx.fillRect(280,1100,1050,3);ctx.fillRect(280,1245,1050,3);return c.toDataURL('image/jpeg',.8).split(',')[1];
  },{dense:`data:image/png;base64,${dense.toString('base64')}`,retail:`data:image/png;base64,${retail.toString('base64')}`});
+ const liveDense=await browser.newPage({viewport:{width:390,height:844}});
+ await liveDense.addInitScript(async source=>{
+  const originalEnumerate=navigator.mediaDevices.enumerateDevices;
+  Object.defineProperty(navigator.mediaDevices,'enumerateDevices',{value:undefined,configurable:true});
+  Object.defineProperty(navigator.mediaDevices,'getUserMedia',{value:async()=>{
+   const image=new Image();image.src=source;await image.decode();
+   const canvas=document.createElement('canvas');canvas.width=1600;canvas.height=1600;
+   const context=canvas.getContext('2d');const draw=()=>{context.drawImage(image,0,0,canvas.width,canvas.height);requestAnimationFrame(draw);};draw();
+   return canvas.captureStream(15);
+  },configurable:true});
+  window.restoreEnumerate=originalEnumerate;
+ },`data:image/jpeg;base64,${labelData}`);
+ await liveDense.goto('http://127.0.0.1:8091');await liveDense.click('#start');
+ await liveDense.waitForFunction(()=>document.querySelector('#count').textContent==='2',{},{timeout:30000});
+ assert.match(await liveDense.locator('#resultList').textContent(),/DENSE-TEST-000123456789/);
+ assert.match(await liveDense.locator('#resultList').textContent(),/9521234567899/);
+ assert.equal(await liveDense.locator('#status').textContent(),'Live');
+ await liveDense.close();
  await page.click('#clear');
  await page.locator('#imageFile').setInputFiles({name:'dense-stacked-label.jpg',mimeType:'image/jpeg',buffer:Buffer.from(labelData,'base64')});
  await page.waitForFunction(()=>document.querySelector('#status').textContent==='Image scanned',{},{timeout:30000});
  assert.equal(await page.locator('#count').textContent(),'2');assert.match(await page.locator('#resultList').textContent(),/DENSE-TEST-000123456789/);assert.match(await page.locator('#resultList').textContent(),/9521234567899/);
  assert.equal(await page.locator('.barcode-clip').count(),2);
  console.log('PASS: dense short barcode below a retail barcode in a tilted, blurred, low-contrast JPEG label; both values and crops recovered.');
+ console.log('PASS: live camera detects the same dense stacked label and stays active when camera enumeration is unavailable.');
  console.log('PASS: multi-barcode image upload, preview, clips, deduplication, reselecting same file, mobile layout, camera/image switching, blank image and corrupt file handling.');
  const denied=await browser.newPage();await denied.addInitScript(()=>Object.defineProperty(navigator.mediaDevices,'getUserMedia',{value:async()=>{throw new DOMException('Denied','NotAllowedError');}}));
  await denied.goto('http://127.0.0.1:8091');await denied.click('#start');await denied.waitForFunction(()=>document.querySelector('#message').textContent.includes('denied'));

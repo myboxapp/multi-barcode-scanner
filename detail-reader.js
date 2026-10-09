@@ -53,3 +53,45 @@ export async function readImageDetails(frame,detector,existing=[]){
  }
  return results;
 }
+
+function cropAndEnhance(frame, region, targetWidth = 1800){
+ const {width,height,data}=frame,{x,y,w,h}=region;
+ const scale=Math.max(1,Math.min(2.5,targetWidth/w));
+ const outWidth=Math.max(1,Math.round(w*scale)),outHeight=Math.max(1,Math.round(h*scale));
+ const output=new Uint8ClampedArray(outWidth*outHeight*4),gray=new Uint8Array(outWidth*outHeight),hist=new Uint32Array(256);
+ for(let oy=0;oy<outHeight;oy++)for(let ox=0;ox<outWidth;ox++){
+  const sx=Math.min(width-1,x+Math.floor(ox/scale)),sy=Math.min(height-1,y+Math.floor(oy/scale));
+  const source=(sy*width+sx)*4,index=oy*outWidth+ox;
+  const value=(data[source]*77+data[source+1]*150+data[source+2]*29)>>8;
+  gray[index]=value;hist[value]++;
+ }
+ let low=0,high=255,total=0;
+ for(let i=0;i<256;i++){total+=hist[i];if(total>=gray.length*.015){low=i;break;}}
+ total=0;for(let i=255;i>=0;i--){total+=hist[i];if(total>=gray.length*.015){high=i;break;}}
+ const range=Math.max(35,high-low);
+ for(let oy=0;oy<outHeight;oy++)for(let ox=0;ox<outWidth;ox++){
+  const index=oy*outWidth+ox,left=gray[oy*outWidth+Math.max(0,ox-1)],right=gray[oy*outWidth+Math.min(outWidth-1,ox+1)];
+  const value=Math.max(0,Math.min(255,(gray[index]+.55*(gray[index]-(left+right)/2)-low)*255/range));
+  const target=index*4;output[target]=output[target+1]=output[target+2]=value;output[target+3]=255;
+ }
+ return {image:new ImageData(output,outWidth,outHeight),scale};
+}
+
+// Live capture alternates through overlapping horizontal bands. This gives a
+// short, dense label more pixels without running the expensive photo pipeline
+// on every frame. The implementation uses ImageData only for mobile WebViews
+// that do not expose OffscreenCanvas inside workers.
+export async function readLiveDetail(frame,detector,phase=0){
+ const {width,height}=frame,bandHeight=Math.max(80,Math.round(height*.42));
+ const positions=[0,.29,.58].map(f=>Math.min(height-bandHeight,Math.round(height*f)));
+ const y=Math.max(0,positions[Math.abs(phase)%positions.length]);
+ const margin=Math.round(width*.04),region={x:margin,y,w:width-margin*2,h:Math.min(bandHeight,height-y)};
+ const {image,scale}=cropAndEnhance(frame,region);
+ const codes=await detector.detect(image);
+ return codes.map(code=>{
+  const cornerPoints=code.cornerPoints.map(point=>({x:point.x/scale+region.x,y:point.y/scale+region.y}));
+  const xs=cornerPoints.map(point=>point.x),ys=cornerPoints.map(point=>point.y);
+  const left=Math.min(...xs),top=Math.min(...ys),right=Math.max(...xs),bottom=Math.max(...ys);
+  return {...code,cornerPoints,boundingBox:{x:left,y:top,width:right-left,height:bottom-top}};
+ });
+}

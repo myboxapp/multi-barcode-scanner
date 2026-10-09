@@ -1,7 +1,7 @@
 const $=id=>document.getElementById(id);
 const video=$('video'), overlay=$('overlay'),ctx=overlay.getContext('2d');
 const capture=document.createElement('canvas'),captureCtx=capture.getContext('2d',{willReadFrequently:true});
-const records=new Map();let stream=null,worker=null,paused=false,busy=false,starting=false,facing='environment',torch=false,torchBusy=false,epoch=0,timer=null,timeout=null,last=[];
+const records=new Map();let stream=null,worker=null,paused=false,busy=false,starting=false,facing='environment',torch=false,torchBusy=false,epoch=0,timer=null,timeout=null,last=[],liveFrame=0,decodeStarted=0;
 let imageMode=false,imageUrl=null;
 const emptyResults=$('resultList').innerHTML;
 const formatNames={code_11:'Code 11',code_32:'Code 32',industrial_2_of_5:'Industrial 2 of 5 / Code 25',iata_2_of_5:'IATA 2 of 5',matrix_2_of_5:'Code 25 (Matrix)',msi_plessey:'MSI Plessey',databar_omni:'GS1 DataBar',databar_stacked:'GS1 DataBar Stacked',databar_stacked_omni:'GS1 DataBar Stacked',databar_limited:'GS1 DataBar Limited',databar_expanded:'GS1 DataBar Expanded',databar_expanded_stacked:'GS1 DataBar Expanded Stacked',upc_a:'UPC-A',upc_e:'UPC-E',ean_13:'EAN-13',ean_8:'EAN-8'};
@@ -57,14 +57,15 @@ function draw(codes=[],width=capture.width,height=capture.height){
     ctx.fillStyle='#b4f477';ctx.fillRect(x,y-22,tw,22);ctx.fillStyle='#152216';ctx.fillText(text,x+8,y-7,tw-16);
   }
 }
-function schedule(){clearTimeout(timer);if(stream&&!paused)timer=setTimeout(scan,140);}
+function schedule(delay=120){clearTimeout(timer);if(stream&&!paused)timer=setTimeout(scan,delay);}
 function scan(){
   if(!stream||paused||busy)return;
   if(video.readyState<2||!video.videoWidth){schedule();return;}
-  const ratio=Math.min(1,1600/video.videoWidth);capture.width=Math.round(video.videoWidth*ratio);capture.height=Math.round(video.videoHeight*ratio);
+  const ratio=Math.min(1,1920/video.videoWidth);capture.width=Math.round(video.videoWidth*ratio);capture.height=Math.round(video.videoHeight*ratio);
   captureCtx.drawImage(video,0,0,capture.width,capture.height);
-  const frame=captureCtx.getImageData(0,0,capture.width,capture.height);busy=true;
-  worker.postMessage({frame,id:epoch},[frame.data.buffer]);
+  const frame=captureCtx.getImageData(0,0,capture.width,capture.height);busy=true;decodeStarted=performance.now();
+  const phase=liveFrame++%4;
+  worker.postMessage({frame,id:epoch,liveDetail:phase<3?phase:undefined},[frame.data.buffer]);
   timeout=setTimeout(()=>{stopCamera();message('The scanner took too long to respond. Start the camera to retry.',true);},20000);
 }
 function setupWorker(){
@@ -77,7 +78,7 @@ function setupWorker(){
     let changed=false;for(const code of last){if(!code.rawValue)continue;const key=JSON.stringify([code.format,code.rawValue]);if(!records.has(key)){records.set(key,{value:code.rawValue,format:code.format,timestamp:new Date().toISOString(),clip:barcodeClip(code)});changed=true;}}
     if(changed)render();
     if(imageMode){$('upload').disabled=false;$('upload').textContent='Upload image';status('Image scanned');message(last.length?`Found ${last.length} barcode${last.length===1?'':'s'} in the image. Unique codes and clips are in the list.`:'No barcodes found. Try a clearer image with the full barcode visible.');}
-    else schedule();
+    else schedule(Math.max(80,350-(performance.now()-decodeStarted)));
   };
   worker.onerror=()=>{stopCamera();message('The scanner could not load. Reload the page to retry.',true);};
 }
@@ -93,7 +94,12 @@ async function startCamera(){
     setupWorker();paused=false;$('cameraEmpty').hidden=true;$('liveHint').hidden=false;$('toggle').disabled=false;$('stop').disabled=false;
     $('toggle').querySelector('span').textContent='Pause';
     const track=stream.getVideoTracks()[0],caps=track.getCapabilities?.()||{};torch=track.getSettings?.().torch===true;updateTorch(!!caps.torch);
-    const devices=await navigator.mediaDevices.enumerateDevices();if(request!==epoch)return;$('flip').disabled=devices.filter(d=>d.kind==='videoinput').length<2;
+    if(Array.isArray(caps.focusMode)&&caps.focusMode.includes('continuous')){
+      track.applyConstraints({advanced:[{focusMode:'continuous'}]}).catch(()=>{});
+    }
+    let cameraCount=1;
+    try{cameraCount=(await navigator.mediaDevices.enumerateDevices?.()||[]).filter(device=>device.kind==='videoinput').length||1;}catch{}
+    if(request!==epoch)return;$('flip').disabled=cameraCount<2;
     track.onended=()=>{stopCamera();message('Camera disconnected. Start the camera to reconnect.',true);};
     status('Live',true);message('Scanning all visible codes. Results stay in this session.');schedule();
   }catch(error){
