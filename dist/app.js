@@ -3,6 +3,7 @@ const video=$('video'), overlay=$('overlay'),ctx=overlay.getContext('2d');
 const capture=document.createElement('canvas'),captureCtx=capture.getContext('2d',{willReadFrequently:true});
 const records=new Map();let stream=null,worker=null,paused=false,busy=false,starting=false,facing='environment',torch=false,epoch=0,timer=null,timeout=null,last=[];
 const emptyResults=$('resultList').innerHTML;
+const formatNames={code_11:'Code 11',code_32:'Code 32',industrial_2_of_5:'Industrial 2 of 5 / Code 25',iata_2_of_5:'IATA 2 of 5',matrix_2_of_5:'Code 25 (Matrix)',msi_plessey:'MSI Plessey',databar_omni:'GS1 DataBar',databar_stacked:'GS1 DataBar Stacked',databar_stacked_omni:'GS1 DataBar Stacked',databar_limited:'GS1 DataBar Limited',databar_expanded:'GS1 DataBar Expanded',databar_expanded_stacked:'GS1 DataBar Expanded Stacked',upc_a:'UPC-A',upc_e:'UPC-E',ean_13:'EAN-13',ean_8:'EAN-8'};
 function message(text,error=false){$('message').textContent=text;$('message').classList.toggle('error',error);}
 function status(text,active=false){$('status').textContent=text;$('status').classList.toggle('active',active);}
 function render(){
@@ -12,7 +13,7 @@ function render(){
   [...records.values()].reverse().forEach(record=>{
     const card=document.createElement('article');card.className='result';
     const top=document.createElement('div');top.className='result-top';
-    const format=document.createElement('span');format.className='format';format.textContent=record.format.replaceAll('_',' ').toUpperCase();
+    const format=document.createElement('span');format.className='format';format.textContent=(formatNames[record.format]||record.format.replaceAll('_',' ')).toUpperCase();
     const time=document.createElement('time');time.dateTime=record.timestamp;time.textContent=new Date(record.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
     top.append(format,time);const value=document.createElement('p');value.className='result-value';value.textContent=record.value;
     const copy=document.createElement('button');copy.textContent='Copy code';copy.setAttribute('aria-label',`Copy ${record.value}`);
