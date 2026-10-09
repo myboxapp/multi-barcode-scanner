@@ -129,7 +129,8 @@ $('imageFile').onchange=async()=>{
     captureCtx.fillStyle='white';captureCtx.fillRect(0,0,capture.width,capture.height);captureCtx.drawImage(img,0,0,capture.width,capture.height);
     $('uploadedImage').src=imageUrl;$('uploadedImage').hidden=false;$('cameraEmpty').hidden=true;status('Scanning image');
     setupWorker();const frame=captureCtx.getImageData(0,0,capture.width,capture.height);busy=true;
-    worker.postMessage({id:request,frame},[frame.data.buffer]);
+    message('Scanning the image and checking smaller barcode regions…');
+    worker.postMessage({id:request,frame,detailed:true},[frame.data.buffer]);
     timeout=setTimeout(()=>{if(request!==epoch)return;stopCamera();message('This image took too long to scan. Try a smaller image.',true);},30000);
   }catch(error){
     if(request!==epoch)return;stopCamera();message(error.message.startsWith('Image is too large')?error.message:'Could not read this image. Try a JPG, PNG or WebP file.',true);

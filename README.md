@@ -4,7 +4,7 @@ Mobile-first, on-device multi-barcode scanner. Camera frames are decoded in a We
 
 ## Image scanning
 
-Upload image accepts browser-readable image files up to 20 MB and 40 megapixels. Images are decoded locally, scaled to a maximum dimension of 2400 pixels, and scanned by the same worker as the camera. The preview receives outlines and the session list receives deduplicated values and crops. Selecting an image stops the active camera and flash; Use camera returns to live capture. No image is sent to a server. HEIC and other codecs depend on browser support; unsupported or damaged images show a retry message.
+Upload image accepts browser-readable image files up to 20 MB and 40 megapixels. Images are decoded locally, scaled to a maximum dimension of 2400 pixels, and scanned by the same worker as the camera. Photo scanning additionally checks overlapping horizontal and vertical regions, resampling and locally enhancing contrast to improve short, dense label detection. Results are mapped back to original photo coordinates and deduplicated; crops always come from the unmodified image. These additional passes apply only to uploaded photos, keeping live camera throughput unchanged. The preview receives outlines and the session list receives deduplicated values and crops. Selecting an image stops the active camera and flash; Use camera returns to live capture. No image is sent to a server. HEIC and other codecs depend on browser support; unsupported or damaged images show a retry message.
 
 ## Supported formats
 

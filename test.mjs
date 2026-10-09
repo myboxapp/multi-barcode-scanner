@@ -70,6 +70,20 @@ try{
  const blank=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=300;c.height=300;const x=c.getContext('2d');x.fillStyle='white';x.fillRect(0,0,300,300);return c.toDataURL('image/png').split(',')[1];});
  await page.locator('#imageFile').setInputFiles({name:'blank.png',mimeType:'image/png',buffer:Buffer.from(blank,'base64')});await page.waitForFunction(()=>document.querySelector('#message').textContent.startsWith('No barcodes found'));assert.equal(await page.locator('#count').textContent(),'2');
  await page.locator('#imageFile').setInputFiles({name:'broken.png',mimeType:'image/png',buffer:Buffer.from('not a real image')});await page.waitForFunction(()=>document.querySelector('#message').textContent.startsWith('Could not read'));assert.equal(await page.locator('#upload').isEnabled(),true);assert.equal(await page.locator('#count').textContent(),'2');
+ const dense=await bwip.toBuffer({bcid:'code128',text:'DENSE-TEST-000123456789',scale:2,height:5,padding:15,backgroundcolor:'FFFFFF'});
+ const retail=await bwip.toBuffer({bcid:'ean13',text:'9521234567899',scale:4,height:28,padding:15,backgroundcolor:'FFFFFF'});
+ const labelData=await page.evaluate(async({dense,retail})=>{
+  const images=await Promise.all([retail,dense].map(async src=>{const i=new Image();i.src=src;await i.decode();return i;}));
+  const c=document.createElement('canvas');c.width=1600;c.height=1600;const ctx=c.getContext('2d');ctx.fillStyle='#a8aca2';ctx.fillRect(0,0,1600,1600);
+  ctx.save();ctx.translate(300,750);ctx.rotate(-Math.PI/180);ctx.globalAlpha=.7;ctx.filter='blur(0.6px)';ctx.drawImage(images[0],0,0);ctx.drawImage(images[1],0,400);ctx.restore();
+  ctx.fillStyle='#303030';ctx.fillRect(280,1100,1050,3);ctx.fillRect(280,1245,1050,3);return c.toDataURL('image/jpeg',.8).split(',')[1];
+ },{dense:`data:image/png;base64,${dense.toString('base64')}`,retail:`data:image/png;base64,${retail.toString('base64')}`});
+ await page.click('#clear');
+ await page.locator('#imageFile').setInputFiles({name:'dense-stacked-label.jpg',mimeType:'image/jpeg',buffer:Buffer.from(labelData,'base64')});
+ await page.waitForFunction(()=>document.querySelector('#status').textContent==='Image scanned',{},{timeout:30000});
+ assert.equal(await page.locator('#count').textContent(),'2');assert.match(await page.locator('#resultList').textContent(),/DENSE-TEST-000123456789/);assert.match(await page.locator('#resultList').textContent(),/9521234567899/);
+ assert.equal(await page.locator('.barcode-clip').count(),2);
+ console.log('PASS: dense short barcode below a retail barcode in a tilted, blurred, low-contrast JPEG label; both values and crops recovered.');
  console.log('PASS: multi-barcode image upload, preview, clips, deduplication, reselecting same file, mobile layout, camera/image switching, blank image and corrupt file handling.');
  const denied=await browser.newPage();await denied.addInitScript(()=>Object.defineProperty(navigator.mediaDevices,'getUserMedia',{value:async()=>{throw new DOMException('Denied','NotAllowedError');}}));
  await denied.goto('http://127.0.0.1:8091');await denied.click('#start');await denied.waitForFunction(()=>document.querySelector('#message').textContent.includes('denied'));
