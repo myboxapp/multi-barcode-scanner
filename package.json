@@ -1,0 +1,22 @@
+{
+  "name": "multiscan",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test.mjs",
+    "build": "node build.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "barcode-detector": "^3.2.2",
+    "esbuild": "^0.28.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.0",
+    "bwip-js": "^4.11.4"
+  }
+}

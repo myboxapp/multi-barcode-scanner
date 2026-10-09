@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111817"><meta name="description" content="Scan multiple barcodes at once with your camera. Live annotations and instant, on-device results."><title>MultiScan — Live barcode scanner</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23111817'/%3E%3Cpath stroke='%23b4f477' stroke-width='2' d='M7 9v14m4-14v14m5-14v14m3-14v14m6-14v14'/%3E%3C/svg%3E"><link rel="stylesheet" href="styles.css"></head>
+<body>
+<header class="topbar"><a class="brand" href="./" aria-label="MultiScan home"><span class="brandmark">▥</span>MultiScan<span class="edition">LIVE</span></a><span class="private"><svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z"/><path d="m8 12 3 3 5-6"/></svg>Processed on your device</span></header>
+<main>
+<div class="heading"><div><div class="eyebrow">CAMERA WORKSPACE</div><h1>One frame. Every barcode.</h1><p>Point your camera at multiple codes. We’ll take it from there.</p></div><span class="session">SESSION <b>01</b></span></div>
+<div class="workspace">
+<section class="scanner" aria-label="Camera scanner">
+<div class="panel-head"><h2><span class="tiny-icon">⌗</span> Live scanner</h2><span id="status" class="badge">Camera off</span></div>
+<div class="viewfinder" id="viewfinder">
+<video id="video" autoplay muted playsinline></video><canvas id="overlay" aria-label="Detected barcode outlines"></canvas>
+<div class="frame-corner tl"></div><div class="frame-corner tr"></div><div class="frame-corner bl"></div><div class="frame-corner br"></div>
+<div class="camera-empty" id="cameraEmpty"><div class="scan-symbol"><svg viewBox="0 0 64 64"><path d="M6 20V9h12M46 9h12v11M58 44v11H46M18 55H6V44M20 22v20M26 22v20M35 22v20M40 22v20M46 22v20"/></svg></div><h3>Ready when you are</h3><p>Enable your camera to scan multiple<br>barcodes in real time.</p><button class="primary" id="start"><svg viewBox="0 0 24 24"><path d="M4 6h4l2-3h4l2 3h4v14H4z"/><circle cx="12" cy="12" r="4"/></svg>Start camera</button><small>Your camera feed stays on this device.</small></div>
+<div class="live-hint" id="liveHint" hidden>Keep codes steady and inside the frame</div>
+</div>
+<div class="camera-controls"><div><button id="toggle" disabled><svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg><span>Pause</span></button><button id="flip" disabled title="Switch camera" aria-label="Switch camera"><svg viewBox="0 0 24 24"><path d="M20 9a8 8 0 0 0-14-3L3 9m0-5v5h5M4 15a8 8 0 0 0 14 3l3-3m0 5v-5h-5"/></svg></button><button id="torch" disabled title="Flashlight unavailable" aria-label="Toggle flashlight" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="m13 2-8 12h6l-1 8 9-13h-7z"/></svg></button></div><button id="stop" class="text-button" disabled>Stop camera</button></div>
+<p id="message" role="status" class="message">Allow camera access when your browser asks.</p>
+</section>
+<aside class="results"><div class="panel-head"><h2>Detected codes <span class="count" id="count">0</span></h2><button id="clear" class="text-button" disabled>Clear</button></div><div class="results-meta"><span>THIS SESSION</span><span id="visibleCount">0 in frame</span></div><div id="resultList" class="result-list"><div class="results-empty"><span class="empty-symbol">▥</span><h3>A clean slate</h3><p>Scanned codes will appear here.<br>Each unique code is saved once.</p></div></div><div class="results-foot"><span class="check-mark">✓</span> Duplicate codes are grouped automatically</div></aside>
+</div>
+<div class="below"><div class="tip"><span>01</span><p><b>Give codes a little space</b>Keep the whole barcode visible, including its edges.</p></div><div class="tip"><span>02</span><p><b>Find the right light</b>Avoid glare and hold your camera steady.</p></div><div class="formats"><span>SUPPORTED FORMATS</span><p>QR · EAN · UPC · Code 128 · Data Matrix + more</p></div></div>
+<footer><span>MultiScan <span class="muted">/</span> A clearer way to capture.</span><span>No uploads. No camera recordings.</span></footer>
+</main><script type="module" src="app.js"></script>
+</body></html>
