@@ -15,7 +15,11 @@ try{
   Object.defineProperty(navigator.mediaDevices,'getUserMedia',{value:async()=>{
    const canvas=document.createElement('canvas');canvas.width=1200;canvas.height=800;const c=canvas.getContext('2d');
    const images=await Promise.all([qr,bar].map(src=>new Promise(resolve=>{const img=new Image();img.onload=()=>resolve(img);img.src=src;})));
-   const draw=()=>{c.fillStyle='white';c.fillRect(0,0,1200,800);c.drawImage(images[0],100,100);c.drawImage(images[1],520,300);requestAnimationFrame(draw);};draw();return canvas.captureStream(15);
+   const draw=()=>{c.fillStyle='white';c.fillRect(0,0,1200,800);c.drawImage(images[0],100,100);c.drawImage(images[1],520,300);requestAnimationFrame(draw);};draw();const stream=canvas.captureStream(15),track=stream.getVideoTracks()[0];
+   let torch=false;window.torchRequests=[];
+   track.getCapabilities=()=>({torch:true});track.getSettings=()=>({torch});
+   track.applyConstraints=async constraints=>{if(window.failTorch)throw new Error('Hardware failure');torch=constraints.advanced[0].torch;window.torchRequests.push(torch);};
+   return stream;
   }});
   Object.defineProperty(navigator.mediaDevices,'enumerateDevices',{value:async()=>[{kind:'videoinput',deviceId:'test'}]});
  },{qr:`data:image/png;base64,${qr.toString('base64')}`,bar:`data:image/png;base64,${bar.toString('base64')}`});
@@ -26,16 +30,34 @@ try{
  assert.match(await page.locator('#resultList').textContent(),/MULTISCAN-TEST-001/);assert.match(await page.locator('#resultList').textContent(),/ITEM-2048/);
  await page.waitForTimeout(800);assert.equal(await page.locator('#count').textContent(),'2');
  assert.equal(await page.locator('#visibleCount').textContent(),'2 in frame');
- const result=await page.evaluate(()=>window.agentTool.execute({}));assert.equal(result.codes.length,2);
+ assert.equal(await page.locator('.barcode-clip').count(),2);
+ assert.equal(await page.locator('.barcode-clip').evaluateAll(images=>images.every(i=>i.complete&&i.naturalWidth>0&&i.naturalHeight>0&&i.naturalWidth<=640&&i.naturalHeight<=640)),true);
+ const croppedValues=await page.evaluate(async()=>{
+  const worker=new Worker('/decoder.js',{type:'module'}),values=[];
+  for(const img of document.querySelectorAll('.barcode-clip')){
+   const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;c.getContext('2d').drawImage(img,0,0);
+   const frame=c.getContext('2d').getImageData(0,0,c.width,c.height);
+   const result=await new Promise(resolve=>{worker.onmessage=({data})=>resolve(data);worker.postMessage({id:1,frame});});values.push(...result.codes.map(code=>code.rawValue));
+  }worker.terminate();return values.sort();
+ });
+ assert.deepEqual(croppedValues,['ITEM-2048','MULTISCAN-TEST-001']);
+ await page.click('#torch');assert.equal(await page.locator('#torch').getAttribute('aria-pressed'),'true');assert.match(await page.locator('#torch').textContent(),/Flash on/);
+ await page.click('#torch');assert.equal(await page.locator('#torch').getAttribute('aria-pressed'),'false');assert.match(await page.locator('#torch').textContent(),/Flash off/);
+ assert.deepEqual(await page.evaluate(()=>window.torchRequests),[true,false]);
+ await page.evaluate(()=>window.failTorch=true);await page.click('#torch');assert.equal(await page.locator('#torch').getAttribute('aria-pressed'),'false');assert.match(await page.locator('#message').textContent(),/could not change/);
+ await page.evaluate(()=>window.failTorch=false);
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ const result=await page.evaluate(()=>window.agentTool.execute({}));assert.equal(result.codes.length,2);assert.ok(result.codes.every(c=>c.hasClip&&!('clip' in c)));
  assert.equal(await page.evaluate(()=>{try{window.agentTool.execute({bad:true});return false;}catch{return true;}}),true);
  await page.click('#toggle');assert.equal(await page.locator('#status').textContent(),'Paused');
  await page.click('#toggle');await page.waitForFunction(()=>document.querySelector('#visibleCount').textContent==='2 in frame');
  await page.screenshot({path:'/tmp/multiscan-active.png',fullPage:true});
  await page.click('#stop');assert.equal(await page.locator('#status').textContent(),'Camera off');assert.equal(await page.locator('#count').textContent(),'2');
- await page.click('#clear');assert.equal(await page.locator('#count').textContent(),'0');
+ assert.equal(await page.locator('.barcode-clip').count(),2);assert.equal(await page.locator('#torch').isDisabled(),true);
+ await page.click('#clear');assert.equal(await page.locator('.barcode-clip').count(),0);assert.equal(await page.locator('#count').textContent(),'0');
  await page.setViewportSize({width:1440,height:1000});await page.screenshot({path:'/tmp/multiscan-desktop.png',fullPage:true});
  const denied=await browser.newPage();await denied.addInitScript(()=>Object.defineProperty(navigator.mediaDevices,'getUserMedia',{value:async()=>{throw new DOMException('Denied','NotAllowedError');}}));
  await denied.goto('http://127.0.0.1:8091');await denied.click('#start');await denied.waitForFunction(()=>document.querySelector('#message').textContent.includes('denied'));
  assert.equal(errors.length,0,errors.join('\n'));
- console.log('PASS: actual QR + Code 128 decoding, multiple outlines, deduplication, pause/resume, stop, clear, mobile layout, permission error, WebMCP read and validation.');
+ console.log('PASS: cropped images decode to matching results, flash on/off and hardware failure, clips retained on stop and removed on clear; actual QR + Code 128 decoding, multiple outlines, deduplication, pause/resume, stop, clear, mobile layout, permission error, WebMCP read and validation.');
 }finally{await browser.close();server.close();}

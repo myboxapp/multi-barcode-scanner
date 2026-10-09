@@ -19,7 +19,7 @@ npm run build
 python3 -m http.server 8080 --directory dist
 ```
 
-Open localhost for desktop development. Mobile cameras require an HTTPS host. No backend, camera uploads, or persistent result storage. Flashlight and camera switching depend on device support. Start camera explicitly to grant permission; backgrounding the page stops capture.
+Open localhost for desktop development. Mobile cameras require an HTTPS host. No backend, camera uploads, or persistent result storage. Each unique detection keeps a PNG crop from the exact decoded frame (up to 640 pixels on its longest side). Clips appear beside the values, survive stopping the camera, and are removed by Clear or a page reload. Flash controls are enabled only when the active camera advertises torch support; the UI reports constraint failures and resets on camera stop or switch. Flashlight and camera switching depend on device support. Start camera explicitly to grant permission; backgrounding the page stops capture.
 
 ## Verify
 
